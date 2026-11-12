@@ -1,0 +1,34 @@
+{
+    "role_id": "LCA_CONSULTANT_CHN",
+    "title": "LCA Consultant (Chennai)",
+    "must_have_skill": [
+        "4-6 years of independent Life Cycle Assessment (LCA) project experience",
+        "Hands‑on expertise with GaBi or SimaPro software",
+        "Proficiency in ISO 14040 and ISO 14044 standards",
+        "Completed at least 3 full LCA projects",
+        "Strong data collection, validation, and quality control for LCI datasets",
+        "Ability to document assumptions and ensure audit‑ready models"
+    ],
+    "nice_to_have_skills": [
+        "Experience with Environmental Product Declarations (EPD)",
+        "Basic knowledge of business finance and accounting",
+        "High willingness to travel across India",
+        "Flexible, self‑motivating, multitasking abilities"
+    ],
+    "keywords": [
+        "LCA",
+        "Life Cycle Assessment",
+        "LCI",
+        "GaBi",
+        "SimaPro",
+        "ISO 14040",
+        "ISO 14044",
+        "Sustainability",
+        "Chennai",
+        "EPD",
+        "Environmental Product Declaration"
+    ],
+    "min_years": 4,
+    "max_years": 6,
+    "min_projects": 3
+}
