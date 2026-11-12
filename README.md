@@ -7,62 +7,57 @@ A prototype that helps an HR team screen resumes for two roles:
 
 It extracts job-related information from resumes, classifies each resume (LCA / UI/UX / both / uncertain), ranks candidates per role with an explanation, and lets a reviewer upload a new resume and see where it lands in the pile.
 
-**Live demo:** `https://resume-ranker-ten.vercel.app/`
+**Live demo:** https://resume-ranker-ten.vercel.app/
 
 ---
 
 ## Features
 
-- Ranked table per role (score bar, years of experience, keyword coverage, classification)
+- Ranked table per role (score, score bar, years of experience, keyword coverage, classification)
 - Sort by score / years / keyword coverage / name; search by name or skill; filter by classification; minimum-score filter
 - Candidate detail panel: extracted skills, summary, years, projects, matched and missing JD keywords, top matching terms, experience check, classification reason
 - Link to the source resume PDF for human verification
-- Warnings shown for resumes with missing or unreadable information (e.g. no skills extracted, scanned PDF)
-- **Upload a new resume** (PDF or TXT): it is extracted, scored, inserted into the pile and its rank per role is shown
+- Warnings shown for resumes with missing or unreadable information (e.g. no skills extracted, empty or scanned PDF)
+- **Upload a new resume** (PDF or TXT): it is extracted, scored, inserted into the pile, and its rank for each role is shown
 
 ---
 
 ## Methodology
 
 ### 1. Extraction (done once, offline)
-Resumes were converted to structured JSON using an AI model with a fixed schema:
+Resumes were converted to structured JSON using an LLM with a fixed schema, and the output was then reviewed and corrected by hand against the source resumes:
 
 | Field | Meaning |
 |---|---|
 | `candidate_name` | Anonymised name / ID |
-| `assigned_role` | AI's own best-fit guess (kept only for comparison, **not used in scoring**) |
+| `assigned_role` | The LLM's own best-fit guess (kept only for comparison, **not used in scoring**) |
 | `years_of_experience` | Total professional experience |
 | `projects_count` | Distinct projects / case studies |
 | `skills_found` | Tools, software, technical skills |
 | `summary` | 2-sentence profile |
 
-Output: `data/all_resumes.json`.
+Output: `data/all_resumes.json` (47 resumes). One resume was empty/unreadable; it is kept in the pile with a warning instead of being dropped.
 
-### 2. Data cleaning (manual review of AI output)
-> Fill this in with what you actually did. Example points:
-> - Compared each resume's AI label with the TF-IDF classification and opened every disagreement / `uncertain` case in the source PDF.
-> - Corrected wrong `years_of_experience` (e.g. internships counted as full years, overlapping jobs double counted).
-> - Fixed `projects_count` and removed junk or duplicate entries from `skills_found`.
-> - Normalised skill spellings (e.g. "Sima Pro" → "SimaPro", "Figma UI" → "Figma").
-> - Resumes that could not be read (scanned/image PDFs) were kept and flagged instead of dropped.
-### 3. Job descriptions
+### 2. Job descriptions
 Each JD is a JSON file (`role_id`, `title`, `must_have_skill`, `nice_to_have_skills`, `keywords`, `min_years`, `max_years`, `min_projects`) in `data/`.
 
-### 4. Ranking method (TF-IDF + cosine similarity)
+### 3. Ranking method (TF-IDF + cosine similarity)
 - **JD document** = title + must-haves + nice-to-haves + keywords (keywords repeated twice so they weigh more).
 - **Resume document** = `skills_found` (twice) + `summary`.
-- One TF-IDF model is fit on all resumes + both JDs (unigrams + bigrams, English stop words removed, sublinear TF, smoothed IDF, L2-normalised).
-- **Score** = cosine similarity between resume vector and JD vector, shown as 0 to 100. Candidates are ranked separately for each role.
+- One TF-IDF model is fit on all resumes + both JDs (unigrams + bigrams, common stop words removed, sublinear TF, smoothed IDF, L2-normalised).
+- **Score** = cosine similarity between the resume vector and the JD vector, shown as 0 to 100. Candidates are ranked separately for each role.
+- Scores are fairly low for most candidates (resumes are short skill lists compared with long JDs), so the ranking order matters more than the absolute number.
+- `pipeline/score.py` runs the same method in Python (scikit-learn) and writes CSVs for review. The web app uses the same method in JavaScript, so decimals can differ slightly; the web app's scores are the reference.
 
-### 5. Classification
+### 4. Classification
 - `uncertain` — best score below **4**
 - `both` — top two scores within **3 points** of each other
 - otherwise — the role with the higher score
 
-### 6. Evidence shown for every result
+### 5. Evidence shown for every result
 Matched / missing JD keywords, keyword coverage %, top terms contributing to the score, years-of-experience check vs the JD range, and whether the minimum project count is met. Years and project checks are evidence only — they do **not** change the score.
 
-### 7. Uploaded resumes
+### 6. Uploaded resumes
 PDF text is read with `unpdf`, then simple rules extract fields (no external API key needed):
 - years of experience: largest "N years / yrs" mention
 - skills: matched against skills seen in the pile + JD keywords
@@ -77,9 +72,9 @@ The new resume is added to the pile, everyone is re-scored, and its rank is retu
 
 - Not every resume extracts perfectly; scanned/image PDFs have no text and will show warnings.
 - TF-IDF measures keyword/term overlap, not real understanding — a resume using different wording for the same skill can score lower.
-- Rule-based extraction for uploads is weaker than the AI extraction used for the main pile.
-- Experience and project counts are shown as evidence but not part of the score.
-- Thresholds (4 and 3 points) were chosen by inspecting the score distribution and can be tuned in `lib/score.js`.
+- Rule-based extraction for uploads is weaker than the LLM extraction used for the main pile.
+- Experience and project counts are shown as evidence but are not part of the score.
+- Thresholds (4 and 3 points) were set after inspecting the score distribution and can be tuned in `lib/score.js`.
 - This tool supports human review; it should not make hiring decisions on its own.
 
 ---
@@ -119,35 +114,10 @@ npm run dev
 ```
 Open http://localhost:3000
 
-Production check before deploying:
-```bash
-npm run build
-npm start
-```
-
 ## Updating the data
 
-Edit the files in `data/` (and add PDFs to `public/resumes/`), then redeploy. Data is bundled at build time, so changes need a new deploy.
+Edit the files in `data/` (and add PDFs to `public/resumes/`), then push to GitHub. Data is bundled at build time, so changes need a new deploy.
 
----
+## Deployment
 
-## Deploy to Vercel (free)
-
-1. **Check files** — `data/` has your three real JSON files, and `public/resumes/` has the PDFs (each named exactly as `candidate_name` + `.pdf`).
-2. **Push to GitHub**
-   ```bash
-   git init
-   git add .
-   git commit -m "Resume ranker prototype"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/<repo-name>.git
-   git push -u origin main
-   ```
-3. Go to https://vercel.com → **Add New → Project** → import the repo.
-4. Framework is detected as **Next.js**. Leave all settings as default (no environment variables needed) and click **Deploy**.
-5. Open the live link, then test: ranked tables load, a candidate opens, the resume link opens, and uploading a PDF returns a rank.
-6. Paste the link at the top of this README and submit it in the form.
-
-Alternative without GitHub: run `npx vercel` in the project folder and follow the prompts, then `npx vercel --prod`.
-
-**Notes:** Vercel's free tier limits request bodies to about 4.5 MB, so uploads are capped at 4 MB. If an uploaded PDF is unreadable, the app shows a clear error instead of failing silently.
+Deployed on Vercel from this GitHub repository. No environment variables are needed.
